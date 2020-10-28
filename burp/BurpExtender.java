@@ -38,6 +38,7 @@ import javax.swing.SwingUtilities;
 import javax.swing.JLabel;
 
 import java.io.PrintWriter;
+import java.io.UnsupportedEncodingException;
 
 public class BurpExtender implements IBurpExtender, IHttpListener, IMessageEditorTabFactory, ITab {
 	
@@ -49,7 +50,8 @@ public class BurpExtender implements IBurpExtender, IHttpListener, IMessageEdito
 	private static String configFilePath = "config.json";
 	private static String initFilePath = "init.hae";
 	private static String initConfigContent = "{\"Email\":{\"loaded\":true,\"highlight\":true,\"regex\":\"([\\\\w-]+(?:\\\\.[\\\\w-]+)*@(?:[\\\\w](?:[\\\\w-]*[\\\\w])?\\\\.)+[\\\\w](?:[\\\\w-]*[\\\\w])?)\",\"extract\":true,\"color\":\"yellow\"}}";
-	private String[] colorArray = new String[] {"red", "orange", "yellow", "green", "cyan", "blue", "pink", "magenta", "gray"};
+	private static String endColor = "";
+	private static String[] colorArray = new String[] {"red", "orange", "yellow", "green", "cyan", "blue", "pink", "magenta", "gray"};
 	private static IMessageEditorTab HaETab;
 	private static PrintWriter stdout;
 	
@@ -68,8 +70,6 @@ public class BurpExtender implements IBurpExtender, IHttpListener, IMessageEdito
 		SwingUtilities.invokeLater(new Runnable() {
 			@Override
 			public void run() {
-				initialize();
-				
 				// 判断"config.json"文件是否具备内容，如若不具备则进行初始化
 				if (configFilePath.equals("config.json")) {
 					if (readFileContent(configFilePath).equals("")) {
@@ -80,10 +80,13 @@ public class BurpExtender implements IBurpExtender, IHttpListener, IMessageEdito
 				// 判断配置文件是否存在
 				if (fileExists(configFilePath)) {
 					configFilePath = readFileContent(initFilePath);
-					fillTable();
 				} else {
 					JOptionPane.showMessageDialog(null, "Config File Not Found!", "Error", JOptionPane.ERROR_MESSAGE);
 				}
+				
+				initialize();
+				fillTable();
+				
 			}
 		});
 		callbacks.registerHttpListener(BurpExtender.this);
@@ -258,8 +261,14 @@ public class BurpExtender implements IBurpExtender, IHttpListener, IMessageEdito
 	 */
 	@Override
     public void processHttpMessage(int toolFlag, boolean messageIsRequest, IHttpRequestResponse messageInfo) {
-        if (!messageIsRequest) {
+		// 判断是否是响应，且该代码作用域为：REPEATER、INTRUDER、PROXY（分别对应toolFlag 64、32、4）
+        if (!messageIsRequest && (toolFlag == 64 || toolFlag == 32 || toolFlag == 4)) {
             byte[] content = messageInfo.getResponse();
+            try {
+				String c = new String(content, "UTF-8").intern();
+			} catch (UnsupportedEncodingException e) {
+				e.printStackTrace();
+			}
             JSONObject jsonObj = matchRegex(content);
             if (jsonObj.length() > 0) {
                 List<String> colorList = new ArrayList<String>();
@@ -268,13 +277,13 @@ public class BurpExtender implements IBurpExtender, IHttpListener, IMessageEdito
                     String name = k.next();
                     JSONObject jsonObj2 = new JSONObject(jsonObj.get(name).toString());
                     boolean isHighlight = jsonObj2.getBoolean("highlight");
-                    boolean isLoaded = jsonObj2.getBoolean("loaded");
-                    if (isHighlight && isLoaded) {
+                    if (isHighlight) {
                         colorList.add(jsonObj2.getString("color"));
                     }
                 }
                 if (colorList.size() != 0) {
-                    String color = colorUpgrade(getColorKeys(colorList));
+                	colorUpgrade(getColorKeys(colorList));
+                    String color = endColor;
                     messageInfo.setHighlight(color);
                 }
             }
@@ -302,7 +311,7 @@ public class BurpExtender implements IBurpExtender, IHttpListener, IMessageEdito
 	
 		@Override
 		public boolean isEnabled(byte[] content, boolean isRequest) {
-			// 这里需要过一次正则匹配决定是否开启Tab
+			// 先判断是否是请求，再判断是否匹配到内容
 			if (!isRequest && matchRegex(content).length() != 0) {
 				return true;
 			}
@@ -329,6 +338,11 @@ public class BurpExtender implements IBurpExtender, IHttpListener, IMessageEdito
 		 */
 		@Override
 		public void setMessage(byte[] content, boolean isRequest) {
+			try {
+				String c = new String(content, "UTF-8").intern();
+			} catch (UnsupportedEncodingException e) {
+				e.printStackTrace();
+			}
 			if (content.length > 0 && !isRequest) {
 				String result = "";
 				JSONObject jsonObj = matchRegex(content);
@@ -338,10 +352,8 @@ public class BurpExtender implements IBurpExtender, IHttpListener, IMessageEdito
 						String name = k.next();
 						JSONObject jsonObj1 = new JSONObject(jsonObj.get(name).toString());
 						boolean isExtract = jsonObj1.getBoolean("extract");
-						boolean isLoaded = jsonObj1.getBoolean("loaded");
-						if (isExtract && isLoaded) {
-							String tmpStr = String.format("[%s] %s \n", name, jsonObj1.getString("data"));
-							String tmpStr1 = new String(tmpStr).intern();
+						if (isExtract) {
+							String tmpStr = String.format("[%s]\n%s\n\n", name, jsonObj1.getString("data")).intern();
 							result += tmpStr;
 						}
 					}
@@ -351,6 +363,7 @@ public class BurpExtender implements IBurpExtender, IHttpListener, IMessageEdito
 			currentMessage = content;
 		}
 	}
+	
 
 	private JSONObject matchRegex(byte[] content) {
 		JSONObject tabContent = new JSONObject();
@@ -371,28 +384,30 @@ public class BurpExtender implements IBurpExtender, IHttpListener, IMessageEdito
 				boolean isLoaded = jsonObj1.getBoolean("loaded");
 				String color = jsonObj1.getString("color");
 				List<String> result = new ArrayList<String>();
-				
-				Pattern pattern = Pattern.compile(regex);
-				Matcher matcher = pattern.matcher(contentString);
-				while (matcher.find()) {
-					// 添加匹配数据至list
-					// 强制用户使用()包裹正则
-					result.add(matcher.group(1));
+				if(isLoaded) {
+					Pattern pattern = Pattern.compile(regex);
+					Matcher matcher = pattern.matcher(contentString);
+					while (matcher.find()) {
+						// 添加匹配数据至list
+						// 强制用户使用()包裹正则
+						result.add(matcher.group(1));
+					}
+					// 去除重复内容
+					HashSet tmpList = new HashSet(result);
+					result.clear();
+					result.addAll(tmpList);
+					
+					if (!result.isEmpty()) {
+						jsonData.put("highlight", isHighligth);
+						jsonData.put("extract", isExtract);
+						jsonData.put("color", color);
+						jsonData.put("data", String.join("\n", result));
+						jsonData.put("loaded", isLoaded);
+						// 初始化格式
+						tabContent.put(name, jsonData);
+					}
 				}
-				// 去除重复内容
-				HashSet tmpList = new HashSet(result);
-				result.clear();
-				result.addAll(tmpList);
-				
-				if (!result.isEmpty()) {
-					jsonData.put("highlight", isHighligth);
-					jsonData.put("extract", isExtract);
-					jsonData.put("color", color);
-					jsonData.put("data", String.join(",", result));
-					jsonData.put("loaded", isLoaded);
-					// 初始化格式
-					tabContent.put(name, jsonData);
-				}
+
 		    }
 		    return tabContent;
 		} catch (Exception e) {
@@ -421,35 +436,35 @@ public class BurpExtender implements IBurpExtender, IHttpListener, IMessageEdito
 	/*
 	 * 颜色升级递归算法
 	 */
-	private String colorUpgrade(List<Integer> colorList) {
+	private static String colorUpgrade(List<Integer> colorList) {
 		int colorSize = colorList.size();
+		colorList.sort(Comparator.comparingInt(Integer::intValue));
 		int i = 0;
 		List<Integer> stack = new ArrayList<Integer>();
 		while (i < colorSize) {
-			if (stack.size() > 0) {
-				stack.add(colorList.get(i));
-				i++;
-			} else if (colorList.get(i) != stack.stream().reduce((first, second) -> second).orElse(999999)) {
+			if (stack.isEmpty()) {
 				stack.add(colorList.get(i));
 				i++;
 			} else {
-				stack.set(stack.size() - 1, stack.get(stack.size() - 1) - 1);
-				i++;
-			}
-		}
-		int stackSize = stack.size();
-		// 利用HashSet删除重复元素
-		HashSet tmpList = new HashSet(stack);
-		stack.clear();
-		stack.addAll(tmpList);
-		if (stackSize == stack.size()) {
-			List<String> endColorList = new ArrayList<String>();
-			for (int j = 0; j < stack.size(); j++) {
-				int num = stack.get(j);
-				endColorList.add(colorArray[num]);
+				if (colorList.get(i) != stack.stream().reduce((first, second) -> second).orElse(99999999)) {
+					stack.add(colorList.get(i));
+					i++;
+				} else {
+					stack.set(stack.size() - 1, stack.get(stack.size() - 1) - 1);
+					i++;
+				}
 			}
 			
-			return endColorList.get(0);
+		}
+		// 利用HashSet删除重复元素
+		HashSet tmpList = new HashSet(stack);
+		if (stack.size() == tmpList.size()) {
+			stack.sort(Comparator.comparingInt(Integer::intValue));
+			if(stack.get(0).equals(-1)) {
+				endColor = colorArray[0];
+			} else {
+				endColor = colorArray[stack.get(0)];
+			}
 		} else {
 			colorUpgrade(stack);
 		}
