@@ -6,7 +6,7 @@ Read Chinese simplified version ([README_zh](README_zh.md)).
 
 ## Introduction
 
-**HaE** is used to highlight HTTP requests and extract information from HTTP response messages.
+**HaE** is used to highlight HTTP requests and extract information from HTTP `response messages` or `request messages`.
 
 ![-w1070](images/16000706401522.jpg)
 
@@ -41,7 +41,7 @@ HaE supports three actions:
 3. Color upgrade algorithm: **Two regulars expression, the colors are both orange, if the request are matched these, it will be upgraded to red.**
 4. The configuration file format uses JSON format, the format is
     ```
-    {name: {"loaded": isLoaded,"regex": regexText, "highlight": isHighlight, "extract": isExtract, "color": colorText}}
+    {name: {"loaded": isLoaded,"regex": regexText, "scope": request/response/any, "action": extract/highlight/any, "color": colorText}}
     ```
 5. Built-in simple cache to reduce the stuttering phenomenon in the `multi-regular, big data scenario`.
 
@@ -79,7 +79,7 @@ The mobile phone number required to be matched cannot be a number from 0-9.
 
 ### Include Regular Expression List
 
-Chinese ID-Number（From: https://github.com/gh0stkey/HaE/issues/3）: 
+Chinese ID-Number(From: https://github.com/gh0stkey/HaE/issues/3): 
 
 ```
 [^0-9]([1-9]\d{5}(18|19|([23]\d))\d{2}((0[1-9])|(10|11|12))(([0-2][1-9])|10|20|30|31)\d{3}[0-9Xx])|([1-9]\d{5}\d{2}((0[1-9])|(10|11|12))(([0-2][1-9])|10|20|30|31)\d{2}[0-9Xx])[^0-9]
@@ -89,5 +89,11 @@ Email Address:
 
 ```
 ([\w-]+(?:\.[\w-]+)*@(?:[\w](?:[\w-]*[\w])?\.)+[\w](?:[\w-]*[\w])?)
+```
+
+Elasticsearch Unauthorized Access(From: https://github.com/gh0stkey/HaE/issues/7):
+
+```
+("cluster_uuid"\s*:\s*"[A-Za-z0-9_-]{22}")
 ```
 

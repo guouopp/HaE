@@ -6,7 +6,7 @@
 
 ![-w1070](images/16000706401522.jpg)
 
-该插件可以通过自定义正则的方式匹配**响应报文**，可以自行决定符合该自定义正则匹配的相应请求是否需要高亮标记、信息提取。
+该插件可以通过自定义正则的方式匹配**响应报文或请求报文**，可以自行决定符合该自定义正则匹配的相应请求是否需要高亮标记、信息提取。
 
 **注**: `HaE`的使用，对测试人员来说需要基本的正则表达式基础，由于`Java`正则表达式的库并没有`Python`的优雅或方便，在使用正则的，HaE要求使用者必须使用`()`将所需提取的表达式内容包含；例如你要匹配一个**Shiro应用**的响应报文，正常匹配规则为`rememberMe=delete`，如果你要提取这段内容的话就需要变成`(rememberMe=delete)`。
 
@@ -37,7 +37,7 @@ HaE支持三个动作:
 3. 颜色升级算法: 利用下标的方式进行优先级排序，当满足2个同颜色条件则以优先级顺序上升颜色。（例如: **两个正则，颜色为橘黄色，该请求两个正则都匹配到了，那么将升级为红色**）
 4. 简单的配置文件格式选用JSON格式，格式为
     ```
-    {name: {"loaded": isLoaded,"regex": regexText, "highlight": isHighlight, "extract": isExtract, "color": colorText}}
+    {name: {"loaded": isLoaded,"regex": regexText, "scope": request/response/any, "action": extract/highlight/any, "color": colorText}}
     ```
 5. 内置简单缓存，在“多正则、大数据”的场景下减少卡顿现象。
 
@@ -89,7 +89,7 @@ Github项目地址（BUG、需求、正则欢迎提交）: https://github.com/gh
 
 ### 收录正则列表
 
-身份证号码（来自: https://github.com/gh0stkey/HaE/issues/3）: 
+身份证号码(来自: https://github.com/gh0stkey/HaE/issues/3): 
 
 ```
 [^0-9]([1-9]\d{5}(18|19|([23]\d))\d{2}((0[1-9])|(10|11|12))(([0-2][1-9])|10|20|30|31)\d{3}[0-9Xx])|([1-9]\d{5}\d{2}((0[1-9])|(10|11|12))(([0-2][1-9])|10|20|30|31)\d{2}[0-9Xx])[^0-9]
@@ -101,3 +101,8 @@ Github项目地址（BUG、需求、正则欢迎提交）: https://github.com/gh
 ([\w-]+(?:\.[\w-]+)*@(?:[\w](?:[\w-]*[\w])?\.)+[\w](?:[\w-]*[\w])?)
 ```
 
+Elasticsearch未授权访问匹配(来自: https://github.com/gh0stkey/HaE/issues/7):
+
+```
+("cluster_uuid"\s*:\s*"[A-Za-z0-9_-]{22}")
+```
